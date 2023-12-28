@@ -3,13 +3,15 @@ package Klijent;
 import java.io.*;
 import java.net.*;
 
+//import Server.Server.ClientHandler.Nalog;
+
 public class Klijent {
     private static final String SERVER_IP = "localhost";
     private static final int SERVER_PORT = 8080;
 
     private static ObjectOutputStream outputStream;
     private static ObjectInputStream inputStream;
-
+    static Nalog trenutniKorisnik;
     public static void main(String[] args) {
         try {
             Socket socket = new Socket(SERVER_IP, SERVER_PORT);
@@ -27,7 +29,12 @@ public class Klijent {
                 String response = (String) inputStream.readObject();
                 System.out.println("Server: " + response);
 
-                int option = Integer.parseInt(reader.readLine());
+                String izbor=reader.readLine();
+                while(!izbor.matches("\\d+")) {
+                	System.out.println("Niste uneli valodnu opciju. Molimo unesite brojevnu vrednost!");
+                	izbor=reader.readLine();
+                }
+                int option = Integer.parseInt(izbor);
                 outputStream.writeObject(option);
                 outputStream.flush();
 
@@ -46,6 +53,16 @@ public class Klijent {
         	  String prezime=reader.readLine();
         	  outputStream.writeObject(prezime);
         	  outputStream.flush();
+        	   }else {
+        		   //salje se ime trenutnog korisnika
+        		   outputStream.writeObject(trenutniKorisnik.ime);
+            	   outputStream.flush();
+            	   //salje se prezime trenutnog korisnika
+            	   outputStream.writeObject(trenutniKorisnik.prezime);
+            	   outputStream.flush();
+            	   //slanje korisnickog imena korisnika
+            	   outputStream.writeObject(trenutniKorisnik.username);
+            	   outputStream.flush();
         	   }
         	  //Adresa
         	  System.out.println("Adresa: ");
@@ -75,6 +92,13 @@ public class Klijent {
         	  }
         	  
         	  }
+        	  }else {
+        		  //slanje kartice trenutno logovanog korisnika
+        		  outputStream.writeObject(trenutniKorisnik.brojKartice);
+           	   outputStream.flush();
+           	   //slanje cvv broja
+           	outputStream.writeObject(trenutniKorisnik.cvv);
+     	   outputStream.flush();
         	  }
         	  
         	  //iznos
@@ -108,6 +132,8 @@ public class Klijent {
         	   System.out.println("Server: "+stanje);
            }
            if(option==3) {
+        	   outputStream.writeObject(registrovan);
+        	   outputStream.flush();
         	   String pregled=(String) inputStream.readObject();
         	   System.out.println("Server: "+pregled);
            }
@@ -217,15 +243,17 @@ public class Klijent {
         		   password=reader.readLine();
         	   }
         	   //poruka koja se ispisuje nakon uspesnog logina
-        	   System.out.println("Uspesno ste se logovali na vas nalog!\n");
-        	   outputStream.writeObject(username);
-        	   outputStream.flush();
+        	   
+        	  trenutniKorisnik=pronadjiNalog(username);
         	   registrovan=true;
-        	   
+        	   outputStream.writeObject(true);
+        	   outputStream.flush();
         	   //poruka koja se ispisuje nakon uspesnog povezivanja korisnika
-        	   
+        	   System.out.println("Uspesno ste se logovali na vas nalog kao: "+trenutniKorisnik.username+"\n");
            }
            if(option==6) {
+        	   outputStream.writeObject(registrovan);
+        	   outputStream.flush();
         	   String stanje=(String) inputStream.readObject();
         	   System.out.println("Server: "+stanje);
         	   registrovan=false;
@@ -301,7 +329,36 @@ public class Klijent {
     	
     	return false;
     }
-  
+    private static Nalog pronadjiNalog(String username) {
+    	Nalog n=new Nalog(null, null, null, null, null, null, null, null);
+    	
+    	try (BufferedReader reader = new BufferedReader(new FileReader("src/bazaNaloga.txt"))) {
+            String red;
+            while ((red = reader.readLine()) != null) {
+                String[] delovi = red.split(";");
+                if (delovi.length == 8) {
+                    String username1 = delovi[0];
+
+                    if (username1.equals(username)) {
+                    	n.username=username1;
+                    	n.ime=delovi[1];
+                    	n.prezime=delovi[2];
+                    	n.jmbg=delovi[3];
+                    	n.brojKartice=delovi[4];
+                    	n.cvv=delovi[5];
+                    	n.email=delovi[6];
+                    	n.password=delovi[7];
+                    	
+                      return n; 
+                    }
+                }
+            }
+        } catch (IOException | NumberFormatException e) {
+            e.printStackTrace();  
+        }
+    	
+    	return null;
+    }
     private static void primiFajl(String putanja) throws IOException, ClassNotFoundException {
         Object obj = inputStream.readObject();
         if (obj instanceof byte[]) {
@@ -357,5 +414,37 @@ public class Klijent {
         }
         return false; // podniz nije pronađen u nizu
     }
-}
+    
+    
+    private static class Nalog {
+        private String username;
+        private String password;
+        private String ime;
+        private String prezime;
+        private String jmbg;
+        private String email;
+        private String brojKartice;
+        private String cvv;
 
+        public Nalog(String username, String password, String ime, String prezime, String jmbg, String email, String brojKartice, String cvv) {
+            this.username = username;
+            this.password = password;
+            this.ime = ime;
+            this.prezime = prezime;
+            this.jmbg = jmbg;
+            this.email = email;
+            this.brojKartice = brojKartice;
+            this.cvv = cvv;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        // Implementirati toString() metodu kako bi se korisnici mogli zapisati u fajl
+        @Override
+        public String toString() {
+            return username + ";" + password + ";" + ime + ";" + prezime + ";" + jmbg + ";" + email + ";" + brojKartice + ";" + cvv;
+        }
+    }
+}
