@@ -10,9 +10,8 @@ public class Server {
     private static final int PORT = 8080;
     private static final List<ClientHandler> klijenti = new ArrayList<>();
     private static int redniBroj;
-   // private static double fond=0;
     static boolean registrovan=false;
-    static Nalog trenutniKorisnik;
+   
    
     public static void main(String[] args) {
         try {
@@ -41,8 +40,8 @@ public class Server {
 
     private static class ClientHandler implements Runnable {
         private Socket clientSocket;
-        private static ObjectOutputStream outputStream;
-        private static ObjectInputStream inputStream;
+         ObjectOutputStream outputStream;
+         ObjectInputStream inputStream;
 
         public ClientHandler(Socket socket) {
             this.clientSocket = socket;
@@ -59,13 +58,13 @@ public class Server {
             try {
             
             	boolean izvrsavanje=true;
-                slanjePoruke("Uspesna konekcija!");
+                slanjePoruke(outputStream, "Uspesna konekcija!");
                 while (izvrsavanje==true) {
                 	if(registrovan) {
-                		slanjePoruke("Dobrodosli "+trenutniKorisnik.ime+"\nIzaberite opciju:\n1. Napravite donaciju\n2. Pregled svih sredstava\n3. Pregled poslednjih 10 transakcija\n4. Prijavite se na postojeci nalog\n5. Registracija\n6. Odjavite se sa naloga\n7. Kraj");
+                		slanjePoruke(outputStream, "Dobrodosli "+"\nIzaberite opciju:\n1. Napravite donaciju\n2. Pregled svih sredstava\n3. Pregled poslednjih 10 transakcija\n4. Prijavite se na postojeci nalog\n5. Registracija\n6. Odjavite se sa naloga\n7. Kraj");
                 	}
                 	else
-                	slanjePoruke("Izaberite opciju:\n1. Napravite donaciju\n2. Pregled svih sredstava\n3. Pregled poslednjih 10 transakcija\n4. Prijavite se na postojeci nalog\n5. Registracija\n6. Odjavite se sa naloga\n7. Kraj");
+                	slanjePoruke(outputStream, "Izaberite opciju:\n1. Napravite donaciju\n2. Pregled svih sredstava\n3. Pregled poslednjih 10 transakcija\n4. Prijavite se na postojeci nalog\n5. Registracija\n6. Odjavite se sa naloga\n7. Kraj");
                    int option=(int) inputStream.readObject();
 
                     switch (option) {
@@ -76,9 +75,10 @@ public class Server {
                             vidiStanje();
                             break;
                         case 3:
+                        	registrovan=(boolean) inputStream.readObject();
                         	if(registrovan)
                             vidiTransakcije();
-                        	else slanjePoruke("Morate biti registrovani za ovu funkcionalnost");
+                        	else slanjePoruke(outputStream, "Morate biti registrovani za ovu funkcionalnost");
                             break;
                         case 4:
                         	login();
@@ -87,12 +87,14 @@ public class Server {
                         	registracija();
                         	break;
                         case 6:
+                        	registrovan=(boolean) inputStream.readObject();
                         	if(registrovan) {
-                        	slanjePoruke("Uspesno ste se izlogovali sa vaseg naloga "+trenutniKorisnik.ime+"\n");
-                        	trenutniKorisnik=null;
+                        	slanjePoruke(outputStream, "Uspesno ste se izlogovali sa vaseg naloga "+"\n");
+                        	
                         	registrovan=false;
                         	}
-                        	else slanjePoruke("Morate se prvo prijaviti na nalog da biste se odjavili!");
+                        	else slanjePoruke(outputStream, "Morate se prvo prijaviti na nalog da biste se odjavili!");
+                        	
                         	break;
                         case 7:
                         	System.out.println("Klijent "+clientSocket.getInetAddress()+" je prekinuo konekciju.");
@@ -100,7 +102,7 @@ public class Server {
                             izvrsavanje=false;
                             break;
                         default:
-                            slanjePoruke("Nepostojeca opcija.Pokusajte opet");
+                            slanjePoruke(outputStream, "Nepostojeca opcija.Pokusajte opet");
                             break;
                     }
                 }
@@ -112,37 +114,35 @@ public class Server {
        
 		private void doniraj() throws IOException, ClassNotFoundException {
 			redniBroj=brojRedovaUFajlu("src/bazaTransakcija.txt")+1;
-			posaljiFajl("src/bazaKartica.txt");
+			posaljiFajl(outputStream, "src/bazaKartica.txt");
             // Korisniku se omogucava da izvrsi donaciju uz prvobitni unos svojih podataka
         	Transakcija t=new Transakcija(null, null, null, null, null, null, null, 0);
         	//Citanje unosa imena korisnika
-        	if(!registrovan) {
+        	
                 t.ime = (String) inputStream.readObject();
-                t.ime.trim();}
-        	else t.ime=trenutniKorisnik.ime;
+                t.ime.trim();
+        	
          //Citanje unosa prezimena i kreiranje korisnickog imena u datom formatu
-                if(!registrovan) {
+                
         		t.prezime = (String) inputStream.readObject();
                 t.prezime.trim();
+                if(!registrovan) {
                 t.korisnickoIme = t.ime.trim() + t.prezime.trim()+"_guest";
                 }else {
-                	t.prezime=trenutniKorisnik.prezime;
-                	t.korisnickoIme=trenutniKorisnik.username;
+                	t.korisnickoIme=(String) inputStream.readObject();
+                	t.korisnickoIme.trim();
                 }
          //Citanje adrese
                 t.adresa=(String) inputStream.readObject();
                 t.adresa.trim();
          //Citanje broja kartice	
-            if(!registrovan) {
+            
         	String brojKartice=(String) inputStream.readObject();
         	String cvv=(String) inputStream.readObject();
          //Provera da li unete vrednosti postoje u bazi kartica se desava u klijentu    	
         	t.brojKartice=brojKartice;
         	t.cvv=cvv;
-                }else {
-                	t.brojKartice=trenutniKorisnik.brojKartice;
-                	t.cvv=trenutniKorisnik.cvv;
-                }
+                
         	t.iznos=(double) inputStream.readObject();
         	
         	
@@ -156,7 +156,7 @@ public class Server {
         	t.datumIVreme=dan+"."+mesec+'.'+godina+'.'+" u "+sati+':'+minuti+'h';
         	
         	sacuvajTransakciju(t);
-        	slanjePoruke("\nSacuvana transakcija br."+redniBroj+" sa sledecim podacima:"+"\nIme: "+t.ime+"\nPrezime: "+t.prezime+"\nKorisnicko ime: "+t.korisnickoIme+"\nAdresa: "+t.adresa+"\nBroj kartice: "+t.brojKartice+"\nIznos: "+t.iznos+"\nVreme: "+t.datumIVreme+"\n");
+        	slanjePoruke(outputStream, "\nSacuvana transakcija br."+redniBroj+" sa sledecim podacima:"+"\nIme: "+t.ime+"\nPrezime: "+t.prezime+"\nKorisnicko ime: "+t.korisnickoIme+"\nAdresa: "+t.adresa+"\nBroj kartice: "+t.brojKartice+"\nIznos: "+t.iznos+"\nVreme: "+t.datumIVreme+"\n");
         	
         	//pravljenje fiskalnog racuna
         	String fiskalni="================================================================\n\n"+"Donacija br."+redniBroj+"\nIme donora: "+t.ime+"\nPrezime donora: "+t.prezime+"\nAdresa: "+t.adresa+"\nBroj kartice: "+t.brojKartice+"\nIznos: "+t.iznos+" dinara\nVreme: "+t.datumIVreme+"\n\n"+"================================================================";
@@ -166,12 +166,12 @@ public class Server {
         //slanje fiskalnog
         outputStream.writeObject(t.korisnickoIme+"_"+redniBroj);
         outputStream.flush();
-		posaljiFajl(t.korisnickoIme+"_"+redniBroj);
+		posaljiFajl(outputStream, t.korisnickoIme+"_"+redniBroj);
 		redniBroj++;
 		}
 
         private void vidiStanje() throws IOException {
-           slanjePoruke("U ovom trenutku ukupno je sklupljeno: "+izracunajSredstva("src/bazaTransakcija.txt")+" dinara u nasoj humanitarnoj organizaciji");
+           slanjePoruke(outputStream, "U ovom trenutku ukupno je sklupljeno: "+izracunajSredstva("src/bazaTransakcija.txt")+" dinara u nasoj humanitarnoj organizaciji");
         }
 
         private void vidiTransakcije() throws IOException {
@@ -189,8 +189,8 @@ public class Server {
         		 }
         	 }
         	 if(numerator>=10)
-        	 slanjePoruke("Poslednjih 10 transakcija izgledaju ovako:\n"+pregled);
-        	 else slanjePoruke("Poslednjih "+numerator+"transakcija izgledaju ovako:"+pregled);
+        	 slanjePoruke(outputStream, "Poslednjih 10 transakcija izgledaju ovako:\n"+pregled);
+        	 else slanjePoruke(outputStream, "Poslednjih "+numerator+"transakcija izgledaju ovako:"+pregled);
         }
         public static int brojRedovaUFajlu(String putanja) {
             int brojRedova = 0;
@@ -206,8 +206,8 @@ public class Server {
             return brojRedova;
         }
         private void registracija() throws ClassNotFoundException, IOException {
-        	posaljiFajl("src/bazaKartica.txt");
-        	posaljiFajl("src/bazaNaloga.txt");
+        	posaljiFajl(outputStream, "src/bazaKartica.txt");
+        	posaljiFajl(outputStream, "src/bazaNaloga.txt");
         	Nalog n=new Nalog(null, null, null, null, null, null, null, null);
         	//Ucitavanje username-a
         	n.username=(String) inputStream.readObject();
@@ -233,7 +233,7 @@ public class Server {
         	//cuvanje korisnika u bazu
         	sacuvajNalog(n);
         	//Slanje poruke o sacuvanom korisniku
-        	slanjePoruke("Sacuvan novi korisnik sa sledecim podacima:\nIme i prezime: "
+        	slanjePoruke(outputStream, "Sacuvan novi korisnik sa sledecim podacima:\nIme i prezime: "
         			+n.ime+" "+n.prezime+
         			"\nUsername: "+n.username+
         			"\nJMBG: "+n.jmbg+
@@ -243,17 +243,16 @@ public class Server {
         }
         //Serverska strana postupka logina korisnika
         private void login() throws ClassNotFoundException, IOException {
-        	posaljiFajl("src/bazaNaloga.txt");
-        	String username=(String) inputStream.readObject();
-        	trenutniKorisnik=pronadjiNalog(username);
-        	registrovan=true;
+        	posaljiFajl(outputStream, "src/bazaNaloga.txt");
+        	
+        	registrovan=(boolean) inputStream.readObject();       	
         	
         }
         
         private boolean isClosed = false;
         private void exit() throws IOException {
         	 if (isClosed==false) {
-        	        slanjePoruke("Hvala Vam što ste koristili naš servis!\nNadamo se budućoj saradnji!");
+        	        slanjePoruke(outputStream, "Hvala Vam što ste koristili naš servis!\nNadamo se budućoj saradnji!");
         	        outputStream.close();
         	        inputStream.close();
         	        clientSocket.close();
@@ -262,7 +261,7 @@ public class Server {
         	    }
         }
 
-        private void slanjePoruke(String poruka) throws IOException {
+        private void slanjePoruke(ObjectOutputStream outputStream,String poruka) throws IOException {
            
 				outputStream.writeObject(poruka);
 				outputStream.flush();
@@ -330,14 +329,18 @@ private static boolean isFileEmpty(String putanja) throws IOException {
         return reader.readLine() == null;
     }
 }
-private static void posaljiFajl(String putanja){
+private static void posaljiFajl(ObjectOutputStream outputStream,String putanja){
 	 File fajl = new File(putanja);
 	    try (FileInputStream fileInputStream = new FileInputStream(fajl)) {
 	        byte[] buffer = new byte[(int) fajl.length()];
 	        fileInputStream.read(buffer, 0, buffer.length);
 
-	        outputStream.writeObject(buffer);
-	        outputStream.flush();
+	       
+				outputStream.writeObject(buffer);
+			
+	       
+				outputStream.flush();
+			
 	    } catch (IOException e) {
 	        e.printStackTrace();  
 	    }
@@ -420,39 +423,44 @@ private static void posaljiFajl(String putanja){
 					 "\nDatum i vreme transakcije: " + datumIVreme +  "\nIznos: " + iznos+" dinara\n";
 		}
 	}
+	 private static class Nalog {
+	       private String username;
+	       private String password;
+	       private String ime;
+	       private String prezime;
+	       private String jmbg;
+	       private String email;
+	       private String brojKartice;
+	       private String cvv;
+
+	       public Nalog(String username, String password, String ime, String prezime, String jmbg, String email, String brojKartice, String cvv) {
+	           this.username = username;
+	           this.password = password;
+	           this.ime = ime;
+	           this.prezime = prezime;
+	           this.jmbg = jmbg;
+	           this.email = email;
+	           this.brojKartice = brojKartice;
+	           this.cvv = cvv;
+	       }
+
+	       public String getUsername() {
+	           return username;
+	       }
+
+	       // Implementirati toString() metodu kako bi se korisnici mogli zapisati u fajl
+	       @Override
+	       public String toString() {
+	           return username + ";" + password + ";" + ime + ";" + prezime + ";" + jmbg + ";" + email + ";" + brojKartice + ";" + cvv;
+	       }
+	   }
 	}
-   private static class Nalog {
-       private String username;
-       private String password;
-       private String ime;
-       private String prezime;
-       private String jmbg;
-       private String email;
-       private String brojKartice;
-       private String cvv;
-
-       public Nalog(String username, String password, String ime, String prezime, String jmbg, String email, String brojKartice, String cvv) {
-           this.username = username;
-           this.password = password;
-           this.ime = ime;
-           this.prezime = prezime;
-           this.jmbg = jmbg;
-           this.email = email;
-           this.brojKartice = brojKartice;
-           this.cvv = cvv;
-       }
-
-       public String getUsername() {
-           return username;
-       }
-
-       // Implementirati toString() metodu kako bi se korisnici mogli zapisati u fajl
-       @Override
-       public String toString() {
-           return username + ";" + password + ";" + ime + ";" + prezime + ";" + jmbg + ";" + email + ";" + brojKartice + ";" + cvv;
-       }
-   }
+  
     }
+
+
+
+
 
 
 
